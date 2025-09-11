@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment - AI Bus Fare Calculation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="distance-bg">
+    <header class="distance-header">
+        <div class="navbar">
+            <a href="{{url_for('home')}}"><span class="material-icons">home</span> Home</a>
+        </div>
+    </header>
+    <div class="container">
+        <div class="glass-card">
+            <h2><span class="material-icons">credit_card</span> Make Payment</h2>
+            <div>
+                <label><span class="material-icons">payments</span> Amount: ₹<span id="fareAmount"></span></label>
+            </div>
+
+            <div style="margin-top:20px; text-align:center">
+                <h3><span class="material-icons">qr_code_2</span> Scan QR to Pay</h3>
+                <img id="qrImg" alt="UPI QR" style="max-width:220px;border-radius:8px;border:1px solid #ccc" />
+            </div>
+
+            <a href="{{url_for('dm')}}" class="back-btn" style="margin-top:18px;display:inline-block"><span class="material-icons">arrow_back</span> Back to Fare Calculation</a>
+        </div>
+    </div>
+    <script>
+    async function loadPaymentArtifacts() {
+        const fare = parseFloat(localStorage.getItem('fare') || '0') || 0;
+        document.getElementById('fareAmount').textContent = fare.toFixed(2);
+        const linkResp = await fetch('/api/upi_link?am=' + encodeURIComponent(fare.toFixed(2)));
+        const linkJson = await linkResp.json();
+        document.getElementById('qrImg').src = '/api/upi_qr?am=' + encodeURIComponent(fare.toFixed(2)) + '&tr=' + encodeURIComponent(linkJson.tr);
+    }
+    document.addEventListener('DOMContentLoaded', async function() {
+        await loadPaymentArtifacts();
+    });
+    </script>
+</body>
+</html>
