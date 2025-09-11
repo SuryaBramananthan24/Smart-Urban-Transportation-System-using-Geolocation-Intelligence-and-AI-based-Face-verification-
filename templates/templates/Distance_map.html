@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bus Fare Distance Map</title>
+  <script src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
+  <script src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
+  <script src="https://js.api.here.com/v3/3.1/mapsjs-ui.js"></script>
+  <script src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
+  <link rel="stylesheet" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body class="distance-bg">
+  <header class="distance-header">
+    <div class="navbar">
+      <a href="{{url_for('home')}}"><span class="material-icons">home</span> Home</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="glass-card map-container">
+      <h2><span class="material-icons">map</span> Calculate Bus Fare</h2>
+      <p class="subtitle">Fare is calculated based on your Start and Destination locations.</p>
+      <div id="map" class="modern-map"></div>
+      <button id="backbtn" class="modern-btn">Calculate Fare</button>
+      <div id="estimatedFare" class="modern-fare"></div>
+    </div>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const fareBtn = document.getElementById("backbtn");
+    const estimatedFareEl = document.getElementById("estimatedFare");
+    let isCalculated = false, d, t, f;
+
+    const platform = new H.service.Platform({ apikey: 'your_api_key' });
+    const layers = platform.createDefaultLayers();
+    const map = new H.Map(
+      document.getElementById('map'),
+      layers.vector.normal.map,
+      { center: { lat:13.0827, lng:80.2707 }, zoom:10 }
+    );
+    window.addEventListener('resize', ()=>map.getViewPort().resize());
+    new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+    H.ui.UI.createDefault(map, layers);
+
+    const router = platform.getRoutingService(null,7);
+
+    fareBtn.addEventListener('click', ()=>{
+      if (!isCalculated) runFareCalc();
+      else window.location.href = '/p';
+    });
+
+    async function runFareCalc() {
+      fareBtn.disabled = true;
+      fareBtn.textContent = 'Calculating…';
+
+      const place1 = localStorage.getItem('place1');
+      const place2 = localStorage.getItem('place2');
+      const c1 = localStorage.getItem('coords1')?.split(',').map(Number);
+      const c2 = localStorage.getItem('coords2')?.split(',').map(Number);
+
+      function arePointsTooClose(c1, c2) {
+        if (!c1 || !c2) return true;
+        // Approximate: 0.00018 deg ~ 20m at equator (routing threshold)
+        const dLat = c1[0] - c2[0];
+        const dLng = c1[1] - c2[1];
+        return Math.sqrt(dLat * dLat + dLng * dLng) < 0.00018;
+      }
+
+      if (!place1 || !place2 || !c1 || !c2) {
+        alert('Place names or coordinates missing! Please detect faces first.');
+        fareBtn.disabled = false;
+        fareBtn.textContent = 'Calculate Fare';
+        return;
+      }
+
+      estimatedFareEl.innerHTML = `<strong>From:</strong> ${place1}<br>
+                                   <strong>To:</strong> ${place2}<br>
+                                   <em>Calculating route…</em>`;
+
+      const start = { lat: c1[0], lng: c1[1] };
+      const end = { lat: c2[0], lng: c2[1] };
+
+      // If points are too close, fallback to backend distance
+      if (arePointsTooClose(c1, c2)) {
+        // Clear previous objects
+        map.removeObjects(map.getObjects());
+        // Add start and end markers only
+        const marker1 = new H.map.Marker(start);
+        const marker2 = new H.map.Marker(end);
+        map.addObject(marker1);
+        map.addObject(marker2);
+        // Adjust viewport to fit both markers
+        const boundingBox = new H.geo.Rect(
+          Math.min(start.lat, end.lat),
+          Math.min(start.lng, end.lng),
+          Math.max(start.lat, end.lat),
+          Math.max(start.lng, end.lng)
+        );
+        map.getViewModel().setLookAtData({bounds: boundingBox, zoom: 18});
+        // Use Spherical Law of Cosines for direct distance (backend with clamping)
+        fetch(`/api/calc_distance?lat1=${c1[0]}&lng1=${c1[1]}&lat2=${c2[0]}&lng2=${c2[1]}`)
+          .then(res => res.json())
+          .then(data => {
+            d = data.distance_m / 1000;
+            t = 0;
+            const MINIMUM_FARE = 20;
+            f = Math.max(50 + 5 * d, MINIMUM_FARE);
+            estimatedFareEl.innerHTML = `<strong>From:</strong> ${place1}<br> <strong>To:</strong> ${place2}<br>
+              <strong>Distance:</strong> ${d.toFixed(2)} km<br>
+              <strong>Fare:</strong> ₹${f.toFixed(2)}<br>
+              <span style='color:orange'><em>Points are very close, minimum fare applied. Only markers shown.</em></span>`;
+            fareBtn.textContent = 'Pay';
+            isCalculated = true;
+            fareBtn.disabled = false;
+            // Store fare in localStorage for Payment page
+            localStorage.setItem('fare', f.toFixed(2));
+          });
+        return;
+      }
+
+      // For routed distances, show route polyline as before
+      map.removeObjects(map.getObjects());
+      map.addObject(new H.map.Marker(start));
+      map.addObject(new H.map.Marker(end));
+
+      router.calculateRoute({
+        mode:'fastest;car',
+        waypoint0:`geo!${start.lat},${start.lng}`,
+        waypoint1:`geo!${end.lat},${end.lng}`,
+        representation:'display',
+        routeAttributes:'summary,shape'
+      },
+      result=>{
+        const route = result.response.route[0];
+        const line = new H.geo.LineString();
+        route.shape.forEach(p=>{
+          const [lat,lng]=p.split(',').map(Number);
+          line.pushLatLngAlt(lat,lng);
+        });
+
+        const poly = new H.map.Polyline(line,{ style:{ strokeColor:'red', lineWidth:5 } });
+        map.addObject(poly);
+        map.getViewModel().setLookAtData({ bounds: poly.getBoundingBox() });
+
+        d = route.summary.distance/1000;
+        t = Math.ceil(route.summary.travelTime/60);
+        f = 50 + 5*d + 1*t;
+
+        estimatedFareEl.innerHTML = `<strong>From:</strong> ${place1}<br> <strong>To:</strong> ${place2}<br>
+        <strong>Distance:</strong> ${d.toFixed(2)} km<br>
+        <strong>Duration:</strong> ${t} min<br>
+        <strong>Fare:</strong> ₹${f.toFixed(2)}`;
+
+        fareBtn.textContent = 'Pay';
+        isCalculated = true;
+        fareBtn.disabled = false;
+        // Store fare in localStorage for Payment page
+        localStorage.setItem('fare', f.toFixed(2));
+      },
+      err=>{
+        // On routing error, fallback to backend distance
+        map.removeObjects(map.getObjects());
+        map.addObject(new H.map.Marker(start));
+        map.addObject(new H.map.Marker(end));
+        fetch(`/api/calc_distance?lat1=${c1[0]}&lng1=${c1[1]}&lat2=${c2[0]}&lng2=${c2[1]}`)
+          .then(res => res.json())
+          .then(data => {
+            d = data.distance_m / 1000;
+            t = 0;
+            const MINIMUM_FARE = 20;
+            f = Math.max(50 + 5 * d, MINIMUM_FARE);
+            estimatedFareEl.innerHTML = `<strong>From:</strong> ${place1}<br> <strong>To:</strong> ${place2}<br>
+              <strong>Distance:</strong> ${d.toFixed(2)} km<br>
+              <strong>Fare:</strong> ₹${f.toFixed(2)}<br>
+              <span style='color:orange'><em>HERE Routing error, minimum fare applied. Only markers shown.</em></span>`;
+            fareBtn.textContent = 'Pay';
+            isCalculated = true;
+        fareBtn.disabled = false;
+          });
+      });
+    }
+  });
+  </script>
+</body>
+</html>
