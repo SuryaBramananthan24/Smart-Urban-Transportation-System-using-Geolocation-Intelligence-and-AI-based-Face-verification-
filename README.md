@@ -1,0 +1,2 @@
+# Smart-Urban-Transportation-System-using-Geolocation-Intelligence-and-AI-based-Face-verification-
+This project is an AI-powered bus management system that automates fare collection and passenger verification. It uses facial recognition to identify passengers, IP geolocation to calculate travel distance, and charges fares automatically through a Flask integrated with the HERE Maps API improving efficiency and reducing fare evasion.
