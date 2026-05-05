@@ -1,0 +1,12 @@
+spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: smarturbantransportationsystem@gmail.com
+    password: ageyvpkzdzbmztsl
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
