@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel History</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body class="distance-bg">
+<header class="distance-header">
+    <div class="navbar">
+        <a th:href="'/'"><span class="material-icons">home</span> Home</a>
+        <a th:href="'/dm'"><span class="material-icons">map</span> Current Trip</a>
+    </div>
+</header>
+
+<div class="container" style="max-width: 1200px; margin-top: 24px;">
+    <div class="glass-card" style="text-align:left;">
+        <h2 style="justify-content:flex-start;"><span class="material-icons">history</span> Your Travel History</h2>
+        <div style="overflow-x:auto; margin-top: 18px;">
+            <table class="history-table" style="width:100%; border-collapse: collapse; background:#fff; border-radius:12px; overflow:hidden;">
+                <thead>
+                <tr style="background:#e8f4ff; color:#1a237e;">
+                    <th style="padding:12px; text-align:left;">Date</th>
+                    <th style="padding:12px; text-align:left;">From (Lat, Lon)</th>
+                    <th style="padding:12px; text-align:left;">To (Lat, Lon)</th>
+                    <th style="padding:12px; text-align:left;">Distance</th>
+                    <th style="padding:12px; text-align:left;">Fare</th>
+                    <th style="padding:12px; text-align:left;">Payment</th>
+                </tr>
+                </thead>
+                <tbody id="historyBody">
+                <tr>
+                    <td colspan="6" style="padding:14px;">Loading history...</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function badge(status) {
+        if (status === 'PAID') {
+            return '<span style="padding:4px 10px;border-radius:14px;background:#e7f8ee;color:#0f7a3b;font-weight:700;">PAID</span>';
+        }
+        if (status === 'PAY_LATER') {
+            return '<span style="padding:4px 10px;border-radius:14px;background:#fff4df;color:#8a5a00;font-weight:700;">PAY LATER</span>';
+        }
+        return '<span style="padding:4px 10px;border-radius:14px;background:#fdeeee;color:#a31515;font-weight:700;">PENDING</span>';
+    }
+
+    function num(v) {
+        const n = Number(v || 0);
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    async function loadHistory() {
+        const body = document.getElementById('historyBody');
+        try {
+            const res = await fetch('/api/trips/history');
+            const data = await res.json();
+
+            if (!data.success) {
+                body.innerHTML = '<tr><td colspan="6" style="padding:14px;">' + (data.message || 'Unable to load history') + '</td></tr>';
+                return;
+            }
+
+            const trips = Array.isArray(data.trips) ? data.trips : [];
+            if (!trips.length) {
+                body.innerHTML = '<tr><td colspan="6" style="padding:14px;">No trips yet for this user.</td></tr>';
+                return;
+            }
+
+            body.innerHTML = trips.map(t => {
+                const created = t.createdAt ? new Date(t.createdAt).toLocaleString() : '-';
+                const start = `${num(t.startLat).toFixed(5)}, ${num(t.startLon).toFixed(5)}`;
+                const end = `${num(t.endLat).toFixed(5)}, ${num(t.endLon).toFixed(5)}`;
+                const dist = `${num(t.roadKm).toFixed(2)} km`;
+                const fare = `Rs. ${num(t.fareAmount).toFixed(2)}`;
+                return `<tr style="border-bottom:1px solid #edf0f6;">
+                    <td style="padding:12px;">${created}</td>
+                    <td style="padding:12px;">${start}</td>
+                    <td style="padding:12px;">${end}</td>
+                    <td style="padding:12px;">${dist}</td>
+                    <td style="padding:12px;">${fare}</td>
+                    <td style="padding:12px;">${badge(t.paymentStatus)}</td>
+                </tr>`;
+            }).join('');
+        } catch (e) {
+            body.innerHTML = '<tr><td colspan="6" style="padding:14px;">Network error while loading history.</td></tr>';
+        }
+    }
+
+    loadHistory();
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment - AI Bus Fare Calculation</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="distance-bg">
+    <header class="distance-header">
+        <div class="navbar">
+            <a th:href="'/'"><span class="material-icons">home</span> Home</a>
+        </div>
+    </header>
+    <div class="container">
+        <div class="glass-card">
+            <h2><span class="material-icons">credit_card</span> Make Payment</h2>
+            <div>
+                <label><span class="material-icons">payments</span> Amount: &#8377;<span id="fareAmount"></span></label>
+            </div>
+
+            <div style="margin-top:20px; text-align:center">
+                <h3><span class="material-icons">qr_code_2</span> Scan QR to Pay</h3>
+                <img id="qrImg" alt="UPI QR" style="max-width:220px;border-radius:8px;border:1px solid #ccc" />
+            </div>
+            <button id="markPaidBtn" class="modern-btn" style="margin-top:18px; max-width:280px;">I Have Paid</button>
+            <a th:href="'/history'" class="back-btn" style="margin-top:10px;display:inline-block">View Travel History</a>
+            <a th:href="'/dm'" class="back-btn" style="margin-top:18px;display:inline-block">Back to Fare Calculation</a>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function () {
+            try {
+                const resp = await fetch('/route/session');
+                const data = await resp.json();
+                const fare = Number(data.fare || 0);
+
+                document.getElementById('fareAmount').textContent = fare.toFixed(2);
+                document.getElementById('qrImg').src =
+                    '/api/upi_qr?am=' + encodeURIComponent(fare.toFixed(2)) +
+                    '&tn=' + encodeURIComponent('AI Bus Fare');
+            } catch (e) {
+                document.getElementById('fareAmount').textContent = '0.00';
+                document.getElementById('qrImg').alt = 'Failed to load UPI QR';
+            }
+
+            document.getElementById('markPaidBtn').addEventListener('click', async function () {
+                const btn = document.getElementById('markPaidBtn');
+                btn.disabled = true;
+                btn.textContent = 'Updating...';
+
+                try {
+                    const res = await fetch('/api/trips/mark-paid', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({})
+                    });
+                    const data = await res.json();
+                    alert(data.success ? 'Payment marked as PAID.' : (data.message || 'Could not update payment status.'));
+                } catch (e) {
+                    alert('Network error while updating payment status.');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'I Have Paid';
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>

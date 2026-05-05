@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Distance Map</title>
+
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        #map { height: 500px; width: 100%; border-radius: 12px; margin-top: 15px; }
+        .stat-chip {
+            background-color:#C5001A; padding:8px 12px;
+            border-radius:6px; color:white; margin-right:8px;
+            font-size:16px; font-weight:bold;
+        }
+        .stat-blue { background-color:#004AAD; }
+    </style>
+</head>
+
+<body class="distance-bg">
+<header class="distance-header">
+    <div class="navbar">
+        <a href="/"><span class="material-icons">home</span> Home</a>
+    </div>
+</header>
+
+<main class="glass-card">
+    <h2><span class="material-icons">map</span> Distance Map</h2>
+
+    <div>
+        <span id="straight" class="stat-chip stat-blue">Shortest Distance: -- km</span>
+        <span id="road" class="stat-chip">Road Distance: -- km</span>
+        <span id="fare" class="stat-chip">Fare: --</span>
+    </div>
+
+    <div id="map"></div>
+
+    <div style="margin-top:20px;text-align:right;">
+        <button id="payBtn" class="modern-btn">Pay Now</button>
+        <button id="payLaterBtn" class="modern-btn" style="background:#004AAD;margin-left:140px">Pay Later</button>
+        <a href="/history" class="modern-btn" style="display:inline-block;width:auto;padding:12px 20px;background:#0f7a3b;margin-left:12px;">History</a>
+    </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+(async function () {
+
+    const resp = await fetch('/route/session');
+    const data = await resp.json();
+
+    // show stats
+    document.getElementById("straight").innerText =
+        "Shortest Distance: " + Number(data.straight_km).toFixed(2) + " km";
+
+    document.getElementById("road").innerText =
+        "Road Distance: " + Number(data.road_km).toFixed(2) + " km";
+
+    document.getElementById("fare").innerText =
+        "Fare: ₹" + Number(data.fare).toFixed(2);
+
+    // send fare to payment page
+    document.getElementById("payBtn").onclick = () => {
+        localStorage.setItem("fare", Number(data.fare).toFixed(2));
+        window.location.href = "/pay";
+    };
+
+    // extract coordinates
+    const startLat = parseFloat(data.start_lat);
+    const startLon = parseFloat(data.start_lon);
+    const endLat   = parseFloat(data.end_lat);
+    const endLon   = parseFloat(data.end_lon);
+
+    const map = L.map("map");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+    }).addTo(map);
+
+    // parse OSRM geometry
+    const geo = JSON.parse(data.route_geojson);
+    const roadCoords = geo.coordinates.map(([lon, lat]) => [lat, lon]);
+
+    // road route (blue)
+    const roadLine = L.polyline(roadCoords, {
+      color:"#1A45F0", weight:7, opacity:0.9
+    }).addTo(map);
+
+    // straight line (dashed)
+    const straightLine = L.polyline(
+      [ [startLat, startLon], [endLat, endLon] ],
+      { color:"#00B7FF", dashArray:"6,6", weight:3 }
+    ).addTo(map);
+
+    // MARKERS
+    L.marker([startLat, startLon]).addTo(map).bindPopup("Start Point");
+    L.marker([endLat, endLon]).addTo(map).bindPopup("Destination");
+
+    // fit route
+    map.fitBounds(roadLine.getBounds(), { padding:[20,20] });
+})();
+    document.getElementById("payLaterBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("payLaterBtn");
+    btn.disabled = true;
+    btn.innerText = "Sending…";
+
+    try {
+        // No need to build JSON manually — controller reads from session+DB
+        const res = await fetch("/api/invoice/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({})   // empty body — all data comes from session & DB
+        });
+        const result = await res.json();
+
+        alert(result.success
+            ? "✅ Invoice emailed! Pay at your convenience."
+            : "❌ " + result.message
+        );
+    } catch (err) {
+        alert("❌ Network error: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Pay Later";
+    }
+});
+</script>
+
+</body>
+</html>

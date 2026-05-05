@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Detection - AI Bus Fare Calculation</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <video id="video" autoplay style="display:none"></video>
+    <canvas id="canvas" width="400" height="300" style="display:none"></canvas>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background-color: #002C54;
+            color: white;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        header {
+            background-color: #C5001A;
+            padding: 10px 0;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        header .navbar {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        header .navbar a {
+            color: white;
+            text-decoration: none;
+            font-size: 16px;
+            padding: 10px 15px;
+            transition: background-color 0.3s ease;
+        }
+
+        header .navbar a:hover {
+            background-color: #a00014;
+            border-radius: 5px;
+        }
+
+        main {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            color: #002C54;
+        }
+
+        main h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #002C54;
+        }
+
+        #startFaceDetection {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #C5001A;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        #startFaceDetection:hover {
+            background-color: #001931;
+        }
+
+        .captured-face-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            gap: 20px;
+        }
+
+        .captured-face-container img {
+            max-width: 200px;
+            border-radius: 10px;
+        }
+
+        .captured-face-container p {
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        #faceComparisonResult {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #C5001A;
+            font-weight: bold;
+        }
+
+        #backbtn {
+            background-color:#C5001A;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 20px;
+            width: 50%;
+            transition: background-color 0.3s ease;
+        }
+
+        #backbtn:hover {
+            background-color: #001931;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .captured-face-container {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .captured-face-container img {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="distance-bg">
+    <header class="distance-header">
+        <div class="navbar">
+            <a th:href="'/'"><span class="material-icons">home</span> Home</a>
+        </div>
+    </header>
+    <main class="glass-card">
+        <h1><span class="material-icons">face</span> Face Detection</h1>
+        <button id="startFaceDetection" class="modern-btn"><span class="material-icons">camera_alt</span> Start Face Detection</button>
+        <div id="capturedFaceContainer" class="captured-face-container">
+            <div>
+                <img id="capturedFace1" src="" alt="Captured Face 1">
+                <p id="location1"></p>
+                <p id="timestamp1"></p>
+            </div>
+            <div>
+                <img id="capturedFace2" src="" alt="Captured Face 2">
+                <p id="location2"></p>
+                <p id="timestamp2"></p>
+            </div>
+        </div>
+        <p id="faceComparisonResult" class="modern-fare"></p>
+    </main>
+    <button id="backbtn" class="modern-btn" th:onclick="window.location.href='/dm'">Next</button>
+    <script>
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+
+// ----------------------
+// Start Webcam
+// ----------------------
+navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => { video.srcObject = stream; })
+    .catch(err => console.log(err));
+
+
+// ----------------------
+// Get GPS Coordinates
+// ----------------------
+async function getLocation() {
+    return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude
+            }),
+            () => resolve({ lat: null, lon: null }) // user denied location
+        );
+    });
+}
+
+
+// ----------------------
+// Convert Coordinates → Place name
+// Using Free OpenStreetMap Reverse API
+// ----------------------
+async function getPlaceName(lat, lon) {
+    if (!lat || !lon) return "Unknown Location";
+
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+
+        const response = await fetch(url, {
+            headers: { "User-Agent": "AI-Bus-Fare-System" }
+        });
+
+        const data = await response.json();
+
+        return data.display_name || "Unknown Location";
+
+    } catch (error) {
+        console.log("Reverse geocoding failed:", error);
+        return "Location unavailable";
+    }
+}
+
+
+// ----------------------
+// Capture image + send to backend
+// ----------------------
+async function captureAndSend() {
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    let imageBase64 = canvas.toDataURL("image/jpeg").split(",")[1];
+
+    let location = await getLocation();
+    let timestamp = new Date().toISOString();
+
+    const resp = await fetch("/fd/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            image: imageBase64,
+            timestamp: timestamp,
+            latitude: location.lat,     // <── Backend uses coordinates
+            longitude: location.lon     // <── Backend uses coordinates
+        })
+    });
+
+    return resp.json();
+}
+
+
+// ----------------------
+// Main Button Action
+// ----------------------
+document.getElementById("startFaceDetection").addEventListener("click", async () => {
+
+    let result = await captureAndSend();
+    let d = result.data;
+
+    // Convert coordinates → readable place name
+    let placeName = await getPlaceName(d.latitude, d.longitude);
+
+
+    if (result.step === 1) {
+
+        // Show First Photo + Data
+        document.getElementById("capturedFace1").src =
+            "data:image/jpeg;base64," + d.face_image;
+
+        document.getElementById("timestamp1").innerText =
+            "Time: " + d.timestamp;
+
+        document.getElementById("location1").innerText =
+            "Location: " + placeName;
+
+    } else {
+
+        // Show Second Photo + Data
+        document.getElementById("capturedFace2").src =
+            "data:image/jpeg;base64," + d.face_image;
+
+        document.getElementById("timestamp2").innerText =
+            "Time: " + d.timestamp;
+
+        document.getElementById("location2").innerText =
+            "Location: " + placeName;
+
+        // ----------------------
+        // Compare both faces after step 2
+        // ----------------------
+        const cmp = await fetch("/fd/compare", { method: "POST" });
+        const json = await cmp.json();
+
+        document.getElementById("faceComparisonResult").innerText =
+            json.match ? "Faces Match!" : "Faces Do Not Match!";
+    }
+});
+</script>
+</body>
+</html>

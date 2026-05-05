@@ -1,12 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-Based Bus Fare Calculation</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" th:href="@{/css/styles.css}">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://js.api.here.com/v3/3.1/mapsjs-core.js" type="text/javascript" charset="utf-8"></script>
     <script src="https://js.api.here.com/v3/3.1/mapsjs-service.js" type="text/javascript" charset="utf-8"></script>
     <script src="https://js.api.here.com/v3/3.1/mapsjs-marker.js" type="text/javascript" charset="utf-8"></script>
@@ -27,7 +29,8 @@
         <div class="hero-content hero-content-spacious">
             <h1 class="hero-title"><span class="material-icons">calculate</span> Optimize Your Bus Fare Calculation with AI</h1>
             <p class="hero-desc">Get the most accurate bus fare estimate based on real-time data like distance, traffic, and weather conditions. Enjoy a seamless, modern experience with our AI-powered platform.</p>
-            <button class="modern-btn hero-btn" onclick="window.location.href='{{url_for('signup')}}'"><span class="material-icons">person_add</span> Get Started</button>
+            <button class="modern-btn hero-btn" th:onclick="window.location.href='/signup'"><span class="material-icons"></span>Get Started</button>
+            <button class="modern-btn hero-btn" th:onclick="window.location.href='/login'"><span class="material-icons"></span>Already a User?</button>
         </div>
         <div id="map" class="hero-map modern-map"></div>
     </section>
@@ -70,20 +73,11 @@
     </footer>
     <script type="text/javascript">
         document.addEventListener('DOMContentLoaded', function () {
-            var platform = new H.service.Platform({
-                apikey: 'your_api_key'
-            });
-
-            const defaultLayers = platform.createDefaultLayers();
-            const mapContainer = document.getElementById('map');
-            const map = new H.Map(mapContainer, defaultLayers.vector.normal.map, {
-                center: { lat: 9.9252, lng: 78.1198 },
-                zoom: 7.5,
-                pixelRatio: window.devicePixelRatio || 1
-            });
-
-            const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
-            const ui = H.ui.UI.createDefault(map, defaultLayers);
+            var map = L.map('map').setView([9.9252, 78.1198], 7.5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
         });
     </script>
 </body>

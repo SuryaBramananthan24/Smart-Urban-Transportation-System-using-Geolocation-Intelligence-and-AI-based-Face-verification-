@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signup - AI Bus Fare Calculation</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="distance-bg">
+    <nav class="distance-header">
+        <div class="logo">
+            <h2><span class="material-icons">person_add</span> AI-Based Bus Fare Calculation</h2>
+        </div>
+        <ul class="nav-links">
+            <li><a th:href="'/'"><span class="material-icons">home</span> Home</a></li>
+            <li><a th:href="'/login'"><span class="material-icons">login</span> Login</a></li>
+        </ul>
+    </nav>
+    <section class="glass-card signup-max-width">
+        <h2><span class="material-icons">person_add</span> Sign Up</h2>
+        <form>
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <button type="button" class="modern-btn" id="signup-btn">Sign Up</button>
+        </form>
+        <p>Already have an account?<a th:href="'/login'">Login here</a></p>
+    </section>
+
+    <script>
+        document.getElementById('signup-btn').addEventListener('click', async () => {
+            const username = document.getElementById('username').value.trim();
+            const email    = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            const res = await fetch('/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, password })
+            });
+            const data = await res.json();
+
+            alert(data.message);
+            if (data.success) window.location.href = '/login';
+        });
+    </script>
+</body>
+</html>
